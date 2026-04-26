@@ -14,17 +14,34 @@ const navItems: NavItem[] = [
   { to: '/account', label: 'Compte', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
 ];
 
+const pageTitles: Record<string, string> = {
+  '/': 'MarketLens',
+  '/assets': 'Actifs',
+  '/news': 'Actualités',
+  '/account': 'Mon compte',
+};
+
 export default function Layout() {
   const location = useLocation();
+
+  const title = location.pathname.startsWith('/chart/')
+    ? 'Graphique'
+    : (pageTitles[location.pathname] ?? 'MarketLens');
+
+  const isHome = location.pathname === '/';
 
   return (
     <div className="flex flex-col min-h-screen pb-[env(safe-area-inset-bottom)]">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur border-b border-border">
-        <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
-          <span className="font-semibold text-lg tracking-tight text-text-primary">
-            Market<span className="text-primary">Lens</span>
-          </span>
+        <div className="max-w-lg mx-auto px-4 h-14 flex items-center">
+          {isHome ? (
+            <span className="font-semibold text-lg tracking-tight text-text-primary">
+              Market<span className="text-primary">Lens</span>
+            </span>
+          ) : (
+            <span className="font-semibold text-base text-text-primary">{title}</span>
+          )}
         </div>
       </header>
 

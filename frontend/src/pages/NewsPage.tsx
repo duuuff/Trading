@@ -3,12 +3,11 @@ import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import type { NewsItem } from '../types';
 
-const sentimentClass = {
-  bullish: 'text-success',
-  bearish: 'text-danger',
-  neutral: 'text-text-muted',
+const SENTIMENT_CONFIG = {
+  bullish: { label: 'Positif', color: 'text-success', bg: 'bg-success/10 border-success/20' },
+  bearish: { label: 'Négatif', color: 'text-danger', bg: 'bg-danger/10 border-danger/20' },
+  neutral: { label: 'Neutre', color: 'text-text-muted', bg: 'bg-surface border-border' },
 };
-const sentimentIcon = { bullish: '↑', bearish: '↓', neutral: '—' };
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -45,7 +44,7 @@ export default function NewsPage() {
     return (
       <div className="px-4 py-5 space-y-3 animate-pulse">
         <div className="h-6 bg-card rounded w-32" />
-        {[1,2,3,4].map((i) => <div key={i} className="card p-4 h-20" />)}
+        {[1, 2, 3, 4].map((i) => <div key={i} className="card p-4 h-24" />)}
       </div>
     );
   }
@@ -55,14 +54,20 @@ export default function NewsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Actualités</h2>
-          <p className="text-sm text-text-secondary mt-0.5">Vos actifs suivis</p>
+          <p className="text-sm text-text-secondary mt-0.5">
+            {news.length > 0 ? `${news.length} articles pour vos actifs` : 'Vos actifs suivis'}
+          </p>
         </div>
         <button
           onClick={() => fetchNews(true)}
           disabled={refreshing}
           className="btn-ghost text-xs px-3 py-2"
         >
-          {refreshing ? '…' : 'Actualiser'}
+          {refreshing ? (
+            <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          ) : 'Actualiser'}
         </button>
       </div>
 
@@ -73,41 +78,58 @@ export default function NewsPage() {
       )}
 
       {!error && news.length === 0 && (
-        <div className="card p-8 text-center">
-          <p className="text-text-secondary text-sm">Aucune actualité disponible.</p>
-          <p className="text-text-muted text-xs mt-1">Abonnez-vous à des actifs pour recevoir des news.</p>
-          <Link to="/assets" className="btn-primary mt-4 inline-flex">Explorer les actifs</Link>
+        <div className="card p-8 text-center border-dashed">
+          <svg className="w-8 h-8 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+          </svg>
+          <p className="text-sm font-medium text-text-primary">Aucune actualité disponible</p>
+          <p className="text-xs text-text-muted mt-1 mb-4">
+            Suivez des actifs pour recevoir leurs news ici.
+          </p>
+          <Link to="/assets" className="btn-primary text-sm">Explorer les actifs</Link>
         </div>
       )}
 
       <div className="space-y-2">
-        {news.map((item, i) => (
-          <a
-            key={i}
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="card p-4 block hover:border-primary/40 transition-colors"
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-xs font-mono font-semibold text-text-muted bg-surface px-1.5 py-0.5 rounded">
-                    {item.asset_symbol}
-                  </span>
-                  <span className={`text-xs font-medium ${sentimentClass[item.sentiment]}`}>
-                    {sentimentIcon[item.sentiment]}
-                  </span>
-                  <span className="text-xs text-text-muted ml-auto">{timeAgo(item.published_at)}</span>
-                </div>
-                <p className="text-sm text-text-primary leading-snug line-clamp-3">{item.title}</p>
-                {item.summary && (
-                  <p className="text-xs text-text-secondary mt-1 line-clamp-2">{item.summary}</p>
-                )}
+        {news.map((item, i) => {
+          const sentiment = SENTIMENT_CONFIG[item.sentiment] ?? SENTIMENT_CONFIG.neutral;
+          return (
+            <a
+              key={i}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card p-4 block active:border-primary/40 transition-colors"
+            >
+              {/* Top meta row */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-mono font-semibold text-text-muted bg-surface px-1.5 py-0.5 rounded border border-border">
+                  {item.asset_symbol}
+                </span>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${sentiment.bg} ${sentiment.color}`}>
+                  {sentiment.label}
+                </span>
+                <span className="text-[10px] text-text-muted ml-auto">{timeAgo(item.published_at)}</span>
               </div>
-            </div>
-          </a>
-        ))}
+
+              {/* Title */}
+              <p className="text-sm text-text-primary leading-snug">{item.title}</p>
+
+              {/* Summary if present */}
+              {item.summary && (
+                <p className="text-xs text-text-secondary mt-1.5 leading-relaxed line-clamp-2">{item.summary}</p>
+              )}
+
+              {/* Read link indicator */}
+              <p className="text-xs text-primary mt-2 flex items-center gap-1 font-medium">
+                Lire l'article
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </p>
+            </a>
+          );
+        })}
       </div>
     </div>
   );
