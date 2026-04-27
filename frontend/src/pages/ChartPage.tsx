@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../services/api';
 import TradingChart from '../components/TradingChart';
 import EventModal from '../components/EventModal';
+import { SkeletonChartPage } from '../components/Skeleton';
 import type { Asset, Candle, MarketEvent } from '../types';
 
 type Period = '3m' | '6m' | '1y' | '2y' | '5y';
@@ -30,6 +31,7 @@ export default function ChartPage() {
   const [selectedEvent, setSelectedEvent] = useState<MarketEvent | null>(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subLoading, setSubLoading] = useState(false);
+  const [subFlash, setSubFlash] = useState<'add' | 'remove' | null>(null);
 
   const decodedSymbol = decodeURIComponent(symbol);
 
@@ -67,10 +69,13 @@ export default function ChartPage() {
       if (isSubscribed) {
         await api.subscriptions.remove(decodedSymbol);
         setIsSubscribed(false);
+        setSubFlash('remove');
       } else {
         await api.subscriptions.add(decodedSymbol);
         setIsSubscribed(true);
+        setSubFlash('add');
       }
+      setTimeout(() => setSubFlash(null), 500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
@@ -82,15 +87,7 @@ export default function ChartPage() {
     setSelectedEvent(event);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="px-4 py-5 space-y-4 animate-pulse">
-        <div className="h-6 bg-card rounded w-40" />
-        <div className="h-8 bg-card rounded" />
-        <div className="h-80 bg-card rounded-2xl" />
-      </div>
-    );
-  }
+  if (loading) return <SkeletonChartPage />;
 
   if (error && !asset) {
     return (
@@ -100,6 +97,11 @@ export default function ChartPage() {
       </div>
     );
   }
+
+  const subBtnBase = 'text-xs px-3 py-2 flex items-center gap-1.5 rounded-xl font-medium transition-colors';
+  const subBtnClass = isSubscribed
+    ? `${subBtnBase} bg-success/10 text-success border border-success/20 ${subFlash === 'add' ? 'animate-flash-success' : ''}`
+    : `${subBtnBase} bg-primary text-white hover:bg-primary-dark ${subFlash === 'remove' ? 'animate-flash-remove' : ''}`;
 
   return (
     <>
@@ -118,27 +120,25 @@ export default function ChartPage() {
             </div>
             <p className="text-sm text-text-secondary mt-0.5 ml-6">{asset?.name}</p>
           </div>
-          <button
-            onClick={handleSubscribe}
-            disabled={subLoading}
-            className={isSubscribed ? 'btn-ghost text-xs px-3 py-2 flex items-center gap-1.5' : 'btn-primary text-xs px-3 py-2'}
-          >
+          <button onClick={handleSubscribe} disabled={subLoading} className={subBtnClass}>
             {subLoading ? (
-              '…'
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
             ) : isSubscribed ? (
               <>
-                <svg className="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
                 Suivi
               </>
             ) : (
-              'Suivre'
+              '+ Suivre'
             )}
           </button>
         </div>
 
-        {/* Error inline (subscribe error) */}
+        {/* Inline error */}
         {error && asset && (
           <div className="text-danger text-xs bg-danger/10 border border-danger/20 rounded-lg px-3 py-2">
             {error}
@@ -160,8 +160,8 @@ export default function ChartPage() {
           ))}
         </div>
 
-        {/* Chart */}
-        <div className={`card overflow-hidden transition-opacity ${chartLoading ? 'opacity-60' : 'opacity-100'}`}>
+        {/* Chart with loading overlay */}
+        <div className="card overflow-hidden relative">
           {candles.length > 0 ? (
             <TradingChart candles={candles} events={events} onEventClick={handleEventClick} />
           ) : (
@@ -169,20 +169,27 @@ export default function ChartPage() {
               <p className="text-text-muted text-sm">Données indisponibles</p>
             </div>
           )}
+          {/* Spinner overlay on period change */}
+          {chartLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-card/70 backdrop-blur-sm">
+              <svg className="w-7 h-7 text-primary animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+            </div>
+          )}
         </div>
 
-        {/* Chart hint */}
+        {/* Chart legend hint */}
         {events.length > 0 && (
           <div className="flex items-center gap-3 bg-surface rounded-xl px-3 py-2.5">
             <div className="flex items-center gap-2 text-xs text-text-muted">
-              <span className="font-medium text-success">↑</span> Hausse
-              <span className="font-medium text-danger ml-1">↓</span> Baisse
+              <span className="font-bold text-success text-sm">↑</span> Hausse
+              <span className="font-bold text-danger text-sm ml-1">↓</span> Baisse
             </div>
-            <div className="flex-1 text-right">
-              <span className="text-xs text-text-muted italic">
-                Appuyez sur une flèche pour voir l'événement
-              </span>
-            </div>
+            <p className="flex-1 text-right text-xs text-text-muted italic">
+              Appuyez sur une flèche
+            </p>
           </div>
         )}
 

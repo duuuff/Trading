@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { SkeletonAssetRow } from '../components/Skeleton';
 import type { Asset, Subscription } from '../types';
 
 type FilterType = 'all' | 'stock' | 'etf' | 'index' | 'crypto';
@@ -29,6 +30,8 @@ export default function AssetsPage() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  // tracks which symbol just changed state for the flash animation
+  const [flashSymbol, setFlashSymbol] = useState<{ symbol: string; type: 'add' | 'remove' } | null>(null);
   const [toastMsg, setToastMsg] = useState('');
 
   useEffect(() => {
@@ -56,18 +59,18 @@ export default function AssetsPage() {
 
   const toggle = async (symbol: string) => {
     setToggling(symbol);
+    const wasSubscribed = subs.has(symbol);
     try {
-      if (subs.has(symbol)) {
+      if (wasSubscribed) {
         await api.subscriptions.remove(symbol);
-        setSubs((prev) => {
-          const n = new Set(prev);
-          n.delete(symbol);
-          return n;
-        });
+        setSubs((prev) => { const n = new Set(prev); n.delete(symbol); return n; });
+        setFlashSymbol({ symbol, type: 'remove' });
       } else {
         await api.subscriptions.add(symbol);
         setSubs((prev) => new Set(prev).add(symbol));
+        setFlashSymbol({ symbol, type: 'add' });
       }
+      setTimeout(() => setFlashSymbol(null), 500);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Erreur');
     } finally {
@@ -127,15 +130,20 @@ export default function AssetsPage() {
       {/* List */}
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="card p-4 animate-pulse h-16" />
-          ))}
+          {[1, 2, 3, 4, 5].map((i) => <SkeletonAssetRow key={i} />)}
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((asset) => {
             const subscribed = subs.has(asset.symbol);
             const isToggling = toggling === asset.symbol;
+            const isFlashing = flashSymbol?.symbol === asset.symbol;
+            const flashClass = isFlashing
+              ? flashSymbol?.type === 'add'
+                ? 'animate-flash-success'
+                : 'animate-flash-remove'
+              : '';
+
             return (
               <div key={asset.id} className="card p-4 flex items-center gap-3">
                 <Link to={`/chart/${encodeURIComponent(asset.symbol)}`} className="flex-1 min-w-0">
@@ -151,14 +159,16 @@ export default function AssetsPage() {
                   onClick={() => toggle(asset.symbol)}
                   disabled={isToggling}
                   aria-label={subscribed ? `Retirer ${asset.symbol}` : `Suivre ${asset.symbol}`}
-                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all active:scale-95 ${
+                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${flashClass} ${
                     subscribed
                       ? 'bg-success/10 text-success border border-success/20'
                       : 'bg-primary text-white hover:bg-primary-dark'
                   }`}
                 >
                   {isToggling ? (
-                    '…'
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
                   ) : subscribed ? (
                     <>
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -167,14 +177,16 @@ export default function AssetsPage() {
                       Suivi
                     </>
                   ) : (
-                    'Suivre'
+                    '+ Suivre'
                   )}
                 </button>
               </div>
             );
           })}
           {filtered.length === 0 && (
-            <p className="text-center text-text-muted text-sm py-8">Aucun résultat pour « {query} »</p>
+            <div className="card p-8 text-center border-dashed">
+              <p className="text-text-muted text-sm">Aucun résultat pour « {query} »</p>
+            </div>
           )}
         </div>
       )}

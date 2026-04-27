@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { SkeletonDashboardRow } from '../components/Skeleton';
 import type { Subscription } from '../types';
 
 const TYPE_ICONS: Record<string, string> = {
@@ -58,9 +59,7 @@ export default function DashboardPage() {
 
         {loading ? (
           <div className="space-y-2">
-            {[1, 2].map((i) => (
-              <div key={i} className="card p-4 animate-pulse h-16" />
-            ))}
+            {[1, 2].map((i) => <SkeletonDashboardRow key={i} />)}
           </div>
         ) : subs.length === 0 ? (
           <div className="card p-6 text-center border-dashed">
