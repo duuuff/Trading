@@ -58,7 +58,14 @@ export async function fetchChart(symbol: string, period: string): Promise<YFCand
 
   const url = `${YF_BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=false`;
 
-  const res = await fetch(url, { headers: DEFAULT_HEADERS });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status}`);
 
   const data = (await res.json()) as YFChartResponse;
@@ -92,7 +99,14 @@ export async function fetchChart(symbol: string, period: string): Promise<YFCand
 export async function fetchNews(symbol: string): Promise<YFNewsItem[]> {
   const url = `${YF_BASE}/v1/finance/search?q=${encodeURIComponent(symbol)}&newsCount=5&quotesCount=0`;
 
-  const res = await fetch(url, { headers: DEFAULT_HEADERS });
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: DEFAULT_HEADERS, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
   if (!res.ok) throw new Error(`Yahoo Finance news HTTP ${res.status}`);
 
   const data = (await res.json()) as YFSearchResponse;

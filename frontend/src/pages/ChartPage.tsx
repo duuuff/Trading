@@ -85,7 +85,7 @@ export default function ChartPage() {
     );
   }
 
-  if (error) {
+  if (error && !asset) {
     return (
       <div className="px-4 py-10 text-center">
         <p className="text-danger text-sm">{error}</p>
@@ -139,6 +139,27 @@ export default function ChartPage() {
         <div className="card overflow-hidden">
           {candles.length > 0 ? (
             <TradingChart candles={candles} events={events} onEventClick={handleEventClick} />
+          ) : error ? (
+            <div className="h-80 flex flex-col items-center justify-center gap-3 px-6 text-center">
+              <svg className="w-8 h-8 text-warning opacity-70" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-text-primary">Données indisponibles</p>
+                <p className="text-xs text-text-muted mt-1 max-w-xs">{error}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setError('');
+                  api.assets.chart(decodedSymbol, period)
+                    .then((d) => setCandles(d.candles))
+                    .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+                }}
+                className="btn-ghost text-xs px-4 py-2"
+              >
+                Réessayer
+              </button>
+            </div>
           ) : (
             <div className="h-80 flex items-center justify-center">
               <p className="text-text-muted text-sm">Données indisponibles</p>
