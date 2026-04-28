@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   createChart,
   ColorType,
+  LineType,
   type IChartApi,
   type ISeriesApi,
-  type CandlestickData,
+  type AreaData,
   type Time,
   type SeriesMarker,
 } from 'lightweight-charts';
@@ -16,14 +17,8 @@ interface Props {
   onEventClick: (event: MarketEvent) => void;
 }
 
-function candleToData(c: Candle): CandlestickData<Time> {
-  return {
-    time: c.time as Time,
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
-  };
+function candleToData(c: Candle): AreaData<Time> {
+  return { time: c.time as Time, value: c.close };
 }
 
 function eventToMarker(e: MarketEvent): SeriesMarker<Time> {
@@ -44,8 +39,7 @@ function eventToMarker(e: MarketEvent): SeriesMarker<Time> {
 export default function TradingChart({ candles, events, onEventClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; candle: Candle } | null>(null);
+  const seriesRef = useRef<ISeriesApi<'Area'> | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -77,13 +71,15 @@ export default function TradingChart({ candles, events, onEventClick }: Props) {
       handleScale: true,
     });
 
-    const series = chart.addCandlestickSeries({
-      upColor: '#10b981',
-      downColor: '#ef4444',
-      borderUpColor: '#10b981',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#10b981',
-      wickDownColor: '#ef4444',
+    const series = chart.addAreaSeries({
+      lineColor: '#3b82f6',
+      topColor: 'rgba(59, 130, 246, 0.2)',
+      bottomColor: 'rgba(59, 130, 246, 0.0)',
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      crosshairMarkerRadius: 4,
+      crosshairMarkerBorderColor: '#3b82f6',
+      crosshairMarkerBackgroundColor: '#1a1a24',
     });
 
     chartRef.current = chart;
@@ -127,39 +123,17 @@ export default function TradingChart({ candles, events, onEventClick }: Props) {
     if (!chart || !series) return;
 
     const handler = (param: { time?: Time; point?: { x: number; y: number } }) => {
-      if (!param.time || !param.point) {
-        setTooltip(null);
-        return;
-      }
-
+      if (!param.time || !param.point) return;
       const clickedMarker = events.find((e) => {
         const eTime = Math.floor(new Date(e.date).getTime() / 1000);
         return eTime === (param.time as number);
       });
-
-      if (clickedMarker) {
-        onEventClick(clickedMarker);
-      }
+      if (clickedMarker) onEventClick(clickedMarker);
     };
 
     chart.subscribeClick(handler);
     return () => chart.unsubscribeClick(handler);
   }, [events, onEventClick]);
 
-  return (
-    <div className="relative w-full">
-      <div ref={containerRef} className="w-full" style={{ height: 320 }} />
-      {tooltip && (
-        <div
-          className="absolute z-10 pointer-events-none bg-card border border-border rounded-lg p-2 text-xs shadow-lg"
-          style={{ left: tooltip.x + 8, top: tooltip.y - 40 }}
-        >
-          <p className="font-mono text-success">O {tooltip.candle.open}</p>
-          <p className="font-mono text-success">H {tooltip.candle.high}</p>
-          <p className="font-mono text-danger">L {tooltip.candle.low}</p>
-          <p className="font-mono text-text-primary">C {tooltip.candle.close}</p>
-        </div>
-      )}
-    </div>
-  );
+  return <div ref={containerRef} className="w-full" style={{ height: 320 }} />;
 }

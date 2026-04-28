@@ -2,10 +2,6 @@ import { getDb } from './database.js';
 import fs from 'fs';
 import path from 'path';
 
-fs.mkdirSync(path.join(__dirname, '../../data'), { recursive: true });
-
-const db = getDb();
-
 const assets = [
   { symbol: 'SPY', name: 'S&P 500 ETF', type: 'etf', description: 'SPDR S&P 500 ETF Trust', currency: 'USD', exchange: 'NYSE' },
   { symbol: 'QQQ', name: 'Nasdaq 100 ETF', type: 'etf', description: 'Invesco QQQ Trust (Nasdaq-100)', currency: 'USD', exchange: 'Nasdaq' },
@@ -18,15 +14,6 @@ const assets = [
   { symbol: 'GLD', name: 'Gold ETF', type: 'etf', description: 'SPDR Gold Shares', currency: 'USD', exchange: 'NYSE' },
   { symbol: 'TLT', name: 'US 20Y Bond ETF', type: 'etf', description: 'iShares 20+ Year Treasury Bond ETF', currency: 'USD', exchange: 'Nasdaq' },
 ];
-
-const insertAsset = db.prepare(`
-  INSERT OR IGNORE INTO assets (symbol, name, type, description, currency, exchange)
-  VALUES (@symbol, @name, @type, @description, @currency, @exchange)
-`);
-
-for (const a of assets) {
-  insertAsset.run(a);
-}
 
 const sampleEvents = [
   {
@@ -95,17 +82,33 @@ const sampleEvents = [
   },
 ];
 
-const getAssetId = db.prepare('SELECT id FROM assets WHERE symbol = ?');
-const insertEvent = db.prepare(`
-  INSERT OR IGNORE INTO events (asset_id, date, title, description, impact, source_url)
-  VALUES (@asset_id, @date, @title, @description, @impact, @source_url)
-`);
+export function seedIfEmpty(): void {
+  fs.mkdirSync(path.join(__dirname, '../../data'), { recursive: true });
+  const db = getDb();
 
-for (const e of sampleEvents) {
-  const row = getAssetId.get(e.symbol) as { id: number } | undefined;
-  if (row) {
-    insertEvent.run({ asset_id: row.id, date: e.date, title: e.title, description: e.description, impact: e.impact, source_url: e.source_url });
+  const { n } = db.prepare('SELECT COUNT(*) as n FROM assets').get() as { n: number };
+  if (n > 0) return;
+
+  const insertAsset = db.prepare(`
+    INSERT OR IGNORE INTO assets (symbol, name, type, description, currency, exchange)
+    VALUES (@symbol, @name, @type, @description, @currency, @exchange)
+  `);
+  for (const a of assets) insertAsset.run(a);
+
+  const getAssetId = db.prepare('SELECT id FROM assets WHERE symbol = ?');
+  const insertEvent = db.prepare(`
+    INSERT OR IGNORE INTO events (asset_id, date, title, description, impact, source_url)
+    VALUES (@asset_id, @date, @title, @description, @impact, @source_url)
+  `);
+  for (const e of sampleEvents) {
+    const row = getAssetId.get(e.symbol) as { id: number } | undefined;
+    if (row) {
+      insertEvent.run({ asset_id: row.id, date: e.date, title: e.title, description: e.description, impact: e.impact, source_url: e.source_url });
+    }
   }
+
+  console.log('[seed] Base de données initialisée avec les données de démonstration.');
 }
 
-console.log('Seed completed.');
+// Allow direct execution: npm run seed
+seedIfEmpty();

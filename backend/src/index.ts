@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { getDb } from './db/database.js';
+import { seedIfEmpty } from './db/seed.js';
 import authRouter from './routes/auth.js';
 import assetsRouter from './routes/assets.js';
 import subscriptionsRouter from './routes/subscriptions.js';
@@ -14,8 +15,9 @@ const PORT = process.env.PORT || 3001;
 // Ensure data directory exists
 fs.mkdirSync(path.join(__dirname, '../data'), { recursive: true });
 
-// Initialize DB
+// Initialize DB and seed sample data on first run
 getDb();
+seedIfEmpty();
 
 const app = express();
 
