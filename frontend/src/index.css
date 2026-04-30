@@ -2,6 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Dark theme — Binance inspired ──────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --rgb-bg:             11 14 17;      /* #0B0E11 */
+  --rgb-surface:        30 32 38;      /* #1E2026 */
+  --rgb-card:           37 41 48;      /* #252930 */
+  --rgb-border:         43 47 54;      /* #2B2F36 */
+  --rgb-primary:        240 185 11;    /* #F0B90B Binance yellow */
+  --rgb-primary-dark:   212 161 7;     /* #D4A107 */
+  --rgb-primary-fg:     11 14 17;      /* dark text on yellow button */
+  --rgb-success:        14 203 129;    /* #0ECB81 Binance green */
+  --rgb-danger:         246 70 93;     /* #F6465D Binance red */
+  --rgb-warning:        245 158 11;
+  --rgb-text-primary:   234 236 239;   /* #EAECEF */
+  --rgb-text-secondary: 132 142 156;   /* #848E9C */
+  --rgb-text-muted:     71 77 87;      /* #474D57 */
+
+  --chart-bg:           #0B0E11;
+  --chart-grid:         #1a1d23;
+  --chart-border:       #2B2F36;
+  --chart-text:         #848E9C;
+  --chart-line:         #F0B90B;
+  --chart-area-top:     rgba(240, 185, 11, 0.18);
+  --chart-area-bottom:  rgba(240, 185, 11, 0);
+  --chart-crosshair:    #F0B90B;
+}
+
+/* ── Light theme — Finary inspired ──────────────────────────────────── */
+[data-theme="light"] {
+  --rgb-bg:             243 244 246;   /* #F3F4F6 */
+  --rgb-surface:        255 255 255;   /* #FFFFFF */
+  --rgb-card:           255 255 255;   /* #FFFFFF */
+  --rgb-border:         229 231 235;   /* #E5E7EB */
+  --rgb-primary:        37 99 235;     /* #2563EB Finary blue */
+  --rgb-primary-dark:   29 78 216;     /* #1D4ED8 */
+  --rgb-primary-fg:     255 255 255;   /* white text on blue button */
+  --rgb-success:        5 150 105;     /* #059669 */
+  --rgb-danger:         220 38 38;     /* #DC2626 */
+  --rgb-warning:        217 119 6;     /* #D97706 */
+  --rgb-text-primary:   17 24 39;      /* #111827 */
+  --rgb-text-secondary: 75 85 99;      /* #4B5563 */
+  --rgb-text-muted:     156 163 175;   /* #9CA3AF */
+
+  --chart-bg:           #FFFFFF;
+  --chart-grid:         #F3F4F6;
+  --chart-border:       #E5E7EB;
+  --chart-text:         #6B7280;
+  --chart-line:         #2563EB;
+  --chart-area-top:     rgba(37, 99, 235, 0.12);
+  --chart-area-bottom:  rgba(37, 99, 235, 0);
+  --chart-crosshair:    #2563EB;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────── */
 @keyframes flash-success {
   0%   { transform: scale(1);    background-color: theme('colors.success'); color: white; }
   40%  { transform: scale(1.08); background-color: theme('colors.success'); color: white; }
@@ -20,6 +74,7 @@
   animation: flash-remove 0.35s ease-out forwards;
 }
 
+/* ── Base ────────────────────────────────────────────────────────────── */
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
@@ -28,9 +83,10 @@
 
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: #07070f;
-    color: #f1f5f9;
+    background-color: rgb(var(--rgb-bg));
+    color: rgb(var(--rgb-text-primary));
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   body {
@@ -46,24 +102,18 @@
     flex-direction: column;
   }
 
-  ::-webkit-scrollbar {
-    width: 4px;
-  }
-  ::-webkit-scrollbar-track {
-    background: #0f0f1a;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #252535;
-    border-radius: 2px;
-  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--rgb-surface)); }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--rgb-border)); border-radius: 2px; }
 }
 
+/* ── Components ──────────────────────────────────────────────────────── */
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-primary hover:bg-primary-dark text-white;
+    @apply btn bg-primary text-primary-fg hover:bg-primary-dark;
   }
   .btn-ghost {
     @apply btn bg-transparent hover:bg-card text-text-secondary hover:text-text-primary border border-border;

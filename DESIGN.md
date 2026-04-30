@@ -1,7 +1,7 @@
 # MarketLens Design System
 
-> Dark, data-dense trading interface. Inspired by professional crypto and financial platforms.
-> Void-black canvas with indigo-violet accent, monospace numerics, high information density.
+> Dual-theme trading interface: **dark mode** inspired by Binance (void-black + yellow), **light mode** inspired by Finary (clean white + blue).
+> Monospace numerics, high information density, CSS variable theming.
 
 ---
 
@@ -16,26 +16,45 @@
 
 ## 2. Color Palette & Roles
 
+### Dark mode — Binance inspired
+
 | Token | Hex | Role |
 |-------|-----|------|
-| `bg` | `#07070f` | Page background — absolute void |
-| `surface` | `#0f0f1a` | Elevated panels, sidebars |
-| `card` | `#16161f` | Cards, modals, inputs |
-| `border` | `#252535` | Dividers, outlines |
-| `primary` | `#6366f1` | Accent — indigo-violet, CTAs, active states |
-| `primary-dark` | `#4f46e5` | Hover/pressed primary |
-| `success` | `#10b981` | Gains, bullish, positive |
-| `danger` | `#ef4444` | Losses, bearish, errors |
-| `warning` | `#f59e0b` | Cautions, neutral alerts |
-| `text-primary` | `#f1f5f9` | Body text, headlines |
-| `text-secondary` | `#94a3b8` | Labels, subtitles |
-| `text-muted` | `#3f3f5a` | Placeholders, disabled |
+| `bg` | `#0B0E11` | Page background — Binance void |
+| `surface` | `#1E2026` | Sidebars, elevated panels |
+| `card` | `#252930` | Cards, modals |
+| `border` | `#2B2F36` | Dividers, outlines |
+| `primary` | `#F0B90B` | Binance yellow — CTAs, active states |
+| `primary-dark` | `#D4A107` | Hover yellow |
+| `primary-fg` | `#0B0E11` | Text ON yellow buttons (dark) |
+| `success` | `#0ECB81` | Binance green — gains, bullish |
+| `danger` | `#F6465D` | Binance red — losses, bearish |
+| `text-primary` | `#EAECEF` | Body text |
+| `text-secondary` | `#848E9C` | Labels, subtitles |
+| `text-muted` | `#474D57` | Placeholders, disabled |
 
-**Semantic rules:**
-- Green (`success`) = price up, bullish events, subscribed state
-- Red (`danger`) = price down, bearish events, errors
-- Indigo (`primary`) = interactive elements, navigation active, links
-- Never use pure white on dark backgrounds — use `text-primary` (`#f1f5f9`)
+### Light mode — Finary inspired
+
+| Token | Hex | Role |
+|-------|-----|------|
+| `bg` | `#F3F4F6` | Page background — soft gray |
+| `surface` | `#FFFFFF` | White panels |
+| `card` | `#FFFFFF` | White cards |
+| `border` | `#E5E7EB` | Subtle dividers |
+| `primary` | `#2563EB` | Finary blue — CTAs, links |
+| `primary-dark` | `#1D4ED8` | Hover blue |
+| `primary-fg` | `#FFFFFF` | White text on blue buttons |
+| `success` | `#059669` | Emerald — gains |
+| `danger` | `#DC2626` | Red — losses |
+| `text-primary` | `#111827` | Near-black body text |
+| `text-secondary` | `#4B5563` | Secondary labels |
+| `text-muted` | `#9CA3AF` | Placeholders |
+
+**Semantic rules (both themes):**
+- Green = gains, bullish events, subscribed
+- Red = losses, bearish events, errors
+- Primary = all interactive elements
+- `primary-fg` = always the text color ON primary buttons
 
 ---
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { useTheme } from '../hooks/useTheme';
 
 interface NavItem {
   to: string;
@@ -27,13 +28,36 @@ const PhoneIcon = () => (
   </svg>
 );
 
+const SunIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+  </svg>
+);
+
+const MoonIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+  </svg>
+);
+
 export default function Layout() {
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
   const [desktop, setDesktop] = useState(() => localStorage.getItem('layout-mode') === 'desktop');
 
   useEffect(() => {
     localStorage.setItem('layout-mode', desktop ? 'desktop' : 'mobile');
   }, [desktop]);
+
+  const ThemeToggle = () => (
+    <button
+      onClick={toggleTheme}
+      className="btn-ghost text-xs px-2.5 py-1.5 flex items-center gap-1.5"
+      title={theme === 'dark' ? 'Passer en clair' : 'Passer en sombre'}
+    >
+      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+    </button>
+  );
 
   if (desktop) {
     return (
@@ -44,14 +68,17 @@ export default function Layout() {
             <span className="font-semibold text-lg tracking-tight text-text-primary">
               Market<span className="text-primary">Lens</span>
             </span>
-            <button
-              onClick={() => setDesktop(false)}
-              className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
-              title="Passer en vue mobile"
-            >
-              <PhoneIcon />
-              Vue mobile
-            </button>
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <button
+                onClick={() => setDesktop(false)}
+                className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
+                title="Passer en vue mobile"
+              >
+                <PhoneIcon />
+                Vue mobile
+              </button>
+            </div>
           </div>
         </header>
 
@@ -100,14 +127,17 @@ export default function Layout() {
           <span className="font-semibold text-lg tracking-tight text-text-primary">
             Market<span className="text-primary">Lens</span>
           </span>
-          <button
-            onClick={() => setDesktop(true)}
-            className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
-            title="Passer en vue bureau"
-          >
-            <MonitorIcon />
-            Vue bureau
-          </button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <button
+              onClick={() => setDesktop(true)}
+              className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
+              title="Passer en vue bureau"
+            >
+              <MonitorIcon />
+              Vue bureau
+            </button>
+          </div>
         </div>
       </header>
 

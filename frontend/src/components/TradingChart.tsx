@@ -9,7 +9,12 @@ import {
   type Time,
   type SeriesMarker,
 } from 'lightweight-charts';
+import { useTheme } from '../hooks/useTheme';
 import type { Candle, MarketEvent } from '../types';
+
+function cssVar(name: string) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 interface Props {
   candles: Candle[];
@@ -40,46 +45,50 @@ export default function TradingChart({ candles, events, onEventClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Area'> | null>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const bg         = cssVar('--chart-bg');
+    const grid       = cssVar('--chart-grid');
+    const borderCol  = cssVar('--chart-border');
+    const textCol    = cssVar('--chart-text');
+    const line       = cssVar('--chart-line');
+    const areaTop    = cssVar('--chart-area-top');
+    const areaBot    = cssVar('--chart-area-bottom');
+    const crosshair  = cssVar('--chart-crosshair');
+
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#07070f' },
-        textColor: '#94a3b8',
+        background: { type: ColorType.Solid, color: bg },
+        textColor: textCol,
         fontFamily: 'Inter, system-ui, sans-serif',
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: '#1e1e2e' },
-        horzLines: { color: '#1e1e2e' },
+        vertLines: { color: grid },
+        horzLines: { color: grid },
       },
       crosshair: {
-        vertLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#6366f1' },
-        horzLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#6366f1' },
+        vertLine: { color: crosshair, width: 1, style: 2, labelBackgroundColor: crosshair },
+        horzLine: { color: crosshair, width: 1, style: 2, labelBackgroundColor: crosshair },
       },
-      rightPriceScale: {
-        borderColor: '#252535',
-      },
-      timeScale: {
-        borderColor: '#252535',
-        timeVisible: true,
-        secondsVisible: false,
-      },
+      rightPriceScale: { borderColor: borderCol },
+      timeScale: { borderColor: borderCol, timeVisible: true, secondsVisible: false },
       handleScroll: true,
       handleScale: true,
     });
 
     const series = chart.addAreaSeries({
-      lineColor: '#6366f1',
-      topColor: 'rgba(99, 102, 241, 0.15)',
-      bottomColor: 'rgba(59, 130, 246, 0.0)',
+      lineColor: line,
+      topColor: areaTop,
+      bottomColor: areaBot,
       lineWidth: 2,
       lineType: LineType.Curved,
       crosshairMarkerRadius: 4,
-      crosshairMarkerBorderColor: '#6366f1',
-      crosshairMarkerBackgroundColor: '#07070f',
+      crosshairMarkerBorderColor: line,
+      crosshairMarkerBackgroundColor: bg,
     });
 
     chartRef.current = chart;
@@ -101,6 +110,35 @@ export default function TradingChart({ candles, events, onEventClick }: Props) {
       seriesRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!chartRef.current || !seriesRef.current) return;
+    const bg        = cssVar('--chart-bg');
+    const grid      = cssVar('--chart-grid');
+    const borderCol = cssVar('--chart-border');
+    const textCol   = cssVar('--chart-text');
+    const line      = cssVar('--chart-line');
+    const areaTop   = cssVar('--chart-area-top');
+    const areaBot   = cssVar('--chart-area-bottom');
+    const crosshair = cssVar('--chart-crosshair');
+    chartRef.current.applyOptions({
+      layout: { background: { type: ColorType.Solid, color: bg }, textColor: textCol },
+      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+      crosshair: {
+        vertLine: { color: crosshair, labelBackgroundColor: crosshair },
+        horzLine: { color: crosshair, labelBackgroundColor: crosshair },
+      },
+      rightPriceScale: { borderColor: borderCol },
+      timeScale: { borderColor: borderCol },
+    });
+    seriesRef.current.applyOptions({
+      lineColor: line,
+      topColor: areaTop,
+      bottomColor: areaBot,
+      crosshairMarkerBorderColor: line,
+      crosshairMarkerBackgroundColor: bg,
+    });
+  }, [theme]);
 
   useEffect(() => {
     if (!seriesRef.current || candles.length === 0) return;
