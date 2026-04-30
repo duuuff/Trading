@@ -1,8 +1,12 @@
 const YF_BASE = 'https://query1.finance.yahoo.com';
+const YF_BASE2 = 'https://query2.finance.yahoo.com';
 
 const DEFAULT_HEADERS: Record<string, string> = {
-  'User-Agent': 'Mozilla/5.0',
-  'Accept': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://finance.yahoo.com',
+  'Referer': 'https://finance.yahoo.com/',
 };
 
 export interface YFCandle {
@@ -113,24 +117,28 @@ interface YFQuoteResponse {
 
 export async function fetchQuotes(symbols: string[]): Promise<Map<string, YFQuote>> {
   if (symbols.length === 0) return new Map();
-  const url = `${YF_BASE}/v7/finance/quote?symbols=${symbols.map(encodeURIComponent).join(',')}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketVolume`;
+  const qs = `symbols=${symbols.map(encodeURIComponent).join(',')}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketVolume`;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  let res: Response;
-  try {
-    res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
+  for (const base of [YF_BASE, YF_BASE2]) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      let res: Response;
+      try {
+        res = await fetch(`${base}/v7/finance/quote?${qs}`, { headers: DEFAULT_HEADERS, signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!res.ok) continue;
+      const data = (await res.json()) as YFQuoteResponse;
+      const result = new Map<string, YFQuote>();
+      for (const q of data.quoteResponse?.result ?? []) {
+        result.set(q.symbol.toUpperCase(), q);
+      }
+      if (result.size > 0) return result;
+    } catch { /* try next host */ }
   }
-  if (!res.ok) throw new Error(`Yahoo Finance quotes HTTP ${res.status}`);
-
-  const data = (await res.json()) as YFQuoteResponse;
-  const result = new Map<string, YFQuote>();
-  for (const q of data.quoteResponse?.result ?? []) {
-    result.set(q.symbol.toUpperCase(), q);
-  }
-  return result;
+  return new Map();
 }
 
 // ── Sparkline (last 30 daily closes) ──────────────────────────────────

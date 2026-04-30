@@ -45,9 +45,11 @@ router.get('/market', optionalAuth, async (req: Request, res: Response): Promise
     }[];
 
     const symbols = assets.map(a => a.symbol);
-    const [quotes, ...sparklines] = await Promise.all([
+
+    // fetchQuotes returns empty map on failure; fetchSparkline already swallows errors
+    const [quotes, sparklineResults] = await Promise.all([
       fetchQuotes(symbols),
-      ...symbols.map(s => fetchSparkline(s)),
+      Promise.all(symbols.map(s => fetchSparkline(s))),
     ]);
 
     const result = assets.map((asset, i) => {
@@ -58,7 +60,7 @@ router.get('/market', optionalAuth, async (req: Request, res: Response): Promise
         change: q?.regularMarketChange ?? null,
         changePercent: q?.regularMarketChangePercent ?? null,
         volume: q?.regularMarketVolume ?? null,
-        sparkline: sparklines[i] ?? [],
+        sparkline: sparklineResults[i] ?? [],
       };
     });
 
