@@ -1,9 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/database.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
-import { fetchChart } from '../services/yahooFinance.js';
+import { fetchChart, fetchQuotes, fetchSparkline } from '../services/yahooFinance.js';
 
 const router = Router();
+
+// In-memory cache (60 seconds) for market data
+let marketCache: { data: unknown; expiry: number } | null = null;
 
 router.get('/', optionalAuth, (req: Request, res: Response): void => {
   const db = getDb();
@@ -28,6 +31,43 @@ router.get('/', optionalAuth, (req: Request, res: Response): void => {
 
   const assets = db.prepare(query).all(...params);
   res.json(assets);
+});
+
+router.get('/market', optionalAuth, async (req: Request, res: Response): Promise<void> => {
+  if (marketCache && marketCache.expiry > Date.now()) {
+    res.json(marketCache.data);
+    return;
+  }
+  try {
+    const db = getDb();
+    const assets = db.prepare('SELECT * FROM assets ORDER BY type, symbol').all() as {
+      id: number; symbol: string; name: string; type: string; currency: string;
+    }[];
+
+    const symbols = assets.map(a => a.symbol);
+    const [quotes, ...sparklines] = await Promise.all([
+      fetchQuotes(symbols),
+      ...symbols.map(s => fetchSparkline(s)),
+    ]);
+
+    const result = assets.map((asset, i) => {
+      const q = quotes.get(asset.symbol.toUpperCase());
+      return {
+        ...asset,
+        price: q?.regularMarketPrice ?? null,
+        change: q?.regularMarketChange ?? null,
+        changePercent: q?.regularMarketChangePercent ?? null,
+        volume: q?.regularMarketVolume ?? null,
+        sparkline: sparklines[i] ?? [],
+      };
+    });
+
+    marketCache = { data: result, expiry: Date.now() + 60_000 };
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erreur inconnue';
+    res.status(502).json({ error: `Données marché indisponibles: ${message}` });
+  }
 });
 
 router.get('/:symbol', optionalAuth, (req: Request, res: Response): void => {

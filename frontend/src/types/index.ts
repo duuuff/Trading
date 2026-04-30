@@ -47,6 +47,14 @@ export interface Subscription {
   created_at: string;
 }
 
+export interface MarketAsset extends Asset {
+  price: number | null;
+  change: number | null;
+  changePercent: number | null;
+  volume: number | null;
+  sparkline: number[];
+}
+
 export interface NewsItem {
   asset_symbol: string;
   title: string;

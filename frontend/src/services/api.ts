@@ -1,4 +1,4 @@
-import type { Asset, Candle, MarketEvent, Subscription, NewsItem, User } from '../types';
+import type { Asset, Candle, MarketEvent, MarketAsset, Subscription, NewsItem, User } from '../types';
 
 const BASE = '/api';
 
@@ -53,6 +53,7 @@ export const api = {
       const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
       return request<Asset[]>(`/assets${qs}`, { headers: headers(true) });
     },
+    market: () => request<MarketAsset[]>('/assets/market', { headers: headers(true) }),
     get: (symbol: string) => request<Asset>(`/assets/${symbol}`, { headers: headers(true) }),
     chart: (symbol: string, period = '1y') =>
       request<{ symbol: string; candles: Candle[] }>(`/assets/${symbol}/chart?period=${period}`, { headers: headers(true) }),

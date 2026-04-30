@@ -48,11 +48,12 @@ interface YFSearchResponse {
 
 export async function fetchChart(symbol: string, period: string): Promise<YFCandle[]> {
   const rangeMap: Record<string, { range: string; interval: string }> = {
+    '1m': { range: '1mo', interval: '1d' },
     '3m': { range: '3mo', interval: '1d' },
     '6m': { range: '6mo', interval: '1d' },
-    '1y': { range: '1y', interval: '1d' },
-    '2y': { range: '2y', interval: '1wk' },
-    '5y': { range: '5y', interval: '1wk' },
+    '1y': { range: '1y',  interval: '1d' },
+    '2y': { range: '2y',  interval: '1wk' },
+    '5y': { range: '5y',  interval: '1wk' },
   };
   const { range, interval } = rangeMap[period] ?? rangeMap['1y'];
 
@@ -94,6 +95,53 @@ export async function fetchChart(symbol: string, period: string): Promise<YFCand
     });
   }
   return candles;
+}
+
+// ── Quotes (current prices for multiple symbols) ──────────────────────
+
+export interface YFQuote {
+  symbol: string;
+  regularMarketPrice?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  regularMarketVolume?: number;
+}
+
+interface YFQuoteResponse {
+  quoteResponse: { result: YFQuote[]; error: unknown };
+}
+
+export async function fetchQuotes(symbols: string[]): Promise<Map<string, YFQuote>> {
+  if (symbols.length === 0) return new Map();
+  const url = `${YF_BASE}/v7/finance/quote?symbols=${symbols.map(encodeURIComponent).join(',')}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketVolume`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) throw new Error(`Yahoo Finance quotes HTTP ${res.status}`);
+
+  const data = (await res.json()) as YFQuoteResponse;
+  const result = new Map<string, YFQuote>();
+  for (const q of data.quoteResponse?.result ?? []) {
+    result.set(q.symbol.toUpperCase(), q);
+  }
+  return result;
+}
+
+// ── Sparkline (last 30 daily closes) ──────────────────────────────────
+
+export async function fetchSparkline(symbol: string): Promise<number[]> {
+  try {
+    const candles = await fetchChart(symbol, '1m');
+    return candles.slice(-30).map(c => c.close);
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchNews(symbol: string): Promise<YFNewsItem[]> {

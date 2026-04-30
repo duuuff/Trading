@@ -1,47 +1,298 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { SkeletonDashboardRow } from '../components/Skeleton';
-import type { Subscription } from '../types';
+import type { MarketAsset, Subscription } from '../types';
 
-const TYPE_ICONS: Record<string, string> = {
-  stock: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6',
-  etf: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
-  index: 'M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z',
-  crypto: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function fmtPrice(price: number): string {
+  if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (price >= 1)    return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+}
+
+function fmtVolume(v: number): string {
+  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
+  return String(v);
+}
+
+const TYPE_COLOR: Record<string, string> = {
+  stock:  'bg-primary/10 text-primary border-primary/20',
+  etf:    'bg-warning/10 text-warning border-warning/20',
+  index:  'bg-success/10 text-success border-success/20',
+  crypto: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
 };
 
-const POPULAR = [
-  { to: '/chart/SPY', symbol: 'SPY', label: 'S&P 500' },
-  { to: '/chart/QQQ', symbol: 'QQQ', label: 'Nasdaq 100' },
-  { to: '/chart/BTC-USD', symbol: 'BTC-USD', label: 'Bitcoin' },
-  { to: '/chart/%5EFCHI', symbol: '^FCHI', label: 'CAC 40' },
-];
+// ── Sparkline SVG ─────────────────────────────────────────────────────
+
+function Sparkline({ prices, positive }: { prices: number[]; positive: boolean }) {
+  if (!prices || prices.length < 2) return <div className="w-20 h-8" />;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+  const W = 80, H = 32, pad = 2;
+  const pts = prices
+    .map((p, i) => `${(i / (prices.length - 1)) * W},${H - pad - ((p - min) / range) * (H - pad * 2)}`)
+    .join(' ');
+  const color = positive ? '#0ECB81' : '#F6465D';
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── Row skeleton ──────────────────────────────────────────────────────
+
+function SkeletonTableRow() {
+  return (
+    <tr className="border-b border-border/50">
+      {[32, 140, 56, 72, 56, 72, 80, 56].map((w, i) => (
+        <td key={i} className="px-4 py-3.5">
+          <div className="h-3.5 rounded animate-pulse bg-border/60" style={{ width: w }} />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+// ── Desktop table ─────────────────────────────────────────────────────
+
+function MarketTable({ assets, subs, toggling, onToggle, onSort, sortKey, sortDir }: {
+  assets: MarketAsset[];
+  subs: Set<string>;
+  toggling: string | null;
+  onToggle: (e: React.MouseEvent, symbol: string) => void;
+  onSort: (k: 'price' | 'change' | 'volume') => void;
+  sortKey: string;
+  sortDir: 1 | -1;
+}) {
+  const navigate = useNavigate();
+
+  const SortTh = ({ label, col }: { label: string; col: 'price' | 'change' | 'volume' }) => (
+    <th
+      onClick={() => onSort(col)}
+      className="px-4 py-3 text-right text-[11px] font-semibold text-text-muted uppercase tracking-wider cursor-pointer select-none hover:text-text-secondary transition-colors whitespace-nowrap"
+    >
+      {label} {sortKey === col ? (sortDir === -1 ? '↓' : '↑') : ''}
+    </th>
+  );
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px]">
+          <thead>
+            <tr className="border-b border-border bg-surface/60">
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider w-10">#</th>
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">Actif</th>
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">Type</th>
+              <SortTh label="Prix" col="price" />
+              <SortTh label="24h %" col="change" />
+              <SortTh label="Volume" col="volume" />
+              <th className="px-4 py-3 text-right text-[11px] font-semibold text-text-muted uppercase tracking-wider">7 jours</th>
+              <th className="px-4 py-3 w-24" />
+            </tr>
+          </thead>
+          <tbody>
+            {assets.map((asset, idx) => {
+              const positive = (asset.changePercent ?? 0) >= 0;
+              const subscribed = subs.has(asset.symbol);
+              const isToggling = toggling === asset.symbol;
+              return (
+                <tr
+                  key={asset.id}
+                  onClick={() => navigate(`/chart/${encodeURIComponent(asset.symbol)}`)}
+                  className="border-b border-border/40 hover:bg-surface/60 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3.5 text-sm font-mono text-text-muted">{idx + 1}</td>
+                  <td className="px-4 py-3.5">
+                    <p className="text-sm font-bold font-mono text-text-primary">{asset.symbol}</p>
+                    <p className="text-xs text-text-secondary truncate max-w-[160px]">{asset.name}</p>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${TYPE_COLOR[asset.type] ?? TYPE_COLOR.stock}`}>
+                      {asset.type.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-right">
+                    {asset.price != null
+                      ? <span className="text-sm font-mono font-semibold text-text-primary">${fmtPrice(asset.price)}</span>
+                      : <span className="text-xs text-text-muted">—</span>}
+                  </td>
+                  <td className="px-4 py-3.5 text-right">
+                    {asset.changePercent != null
+                      ? <span className={`text-sm font-mono font-semibold ${positive ? 'text-success' : 'text-danger'}`}>
+                          {positive ? '+' : ''}{asset.changePercent.toFixed(2)}%
+                        </span>
+                      : <span className="text-xs text-text-muted">—</span>}
+                  </td>
+                  <td className="px-4 py-3.5 text-right">
+                    {asset.volume != null
+                      ? <span className="text-sm font-mono text-text-secondary">{fmtVolume(asset.volume)}</span>
+                      : <span className="text-xs text-text-muted">—</span>}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex justify-end">
+                      <Sparkline prices={asset.sparkline} positive={positive} />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={e => onToggle(e, asset.symbol)}
+                      disabled={isToggling}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+                        subscribed
+                          ? 'bg-success/10 text-success border border-success/20'
+                          : 'bg-primary text-primary-fg hover:bg-primary-dark'
+                      }`}
+                    >
+                      {isToggling
+                        ? '…'
+                        : subscribed ? '✓ Suivi' : '+ Suivre'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Mobile cards ──────────────────────────────────────────────────────
+
+function MobileCards({ assets, subs, toggling, onToggle }: {
+  assets: MarketAsset[];
+  subs: Set<string>;
+  toggling: string | null;
+  onToggle: (e: React.MouseEvent, symbol: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {assets.map((asset) => {
+        const positive = (asset.changePercent ?? 0) >= 0;
+        const subscribed = subs.has(asset.symbol);
+        return (
+          <Link
+            key={asset.id}
+            to={`/chart/${encodeURIComponent(asset.symbol)}`}
+            className="card p-4 flex items-center gap-3 active:border-primary/40 transition-colors block"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm font-mono text-text-primary">{asset.symbol}</span>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${TYPE_COLOR[asset.type] ?? TYPE_COLOR.stock}`}>
+                  {asset.type.toUpperCase()}
+                </span>
+              </div>
+              <p className="text-xs text-text-secondary truncate mt-0.5">{asset.name}</p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              {asset.price != null && (
+                <p className="text-sm font-mono font-semibold text-text-primary">${fmtPrice(asset.price)}</p>
+              )}
+              {asset.changePercent != null && (
+                <p className={`text-xs font-mono font-semibold ${positive ? 'text-success' : 'text-danger'}`}>
+                  {positive ? '+' : ''}{asset.changePercent.toFixed(2)}%
+                </p>
+              )}
+            </div>
+            <div onClick={e => e.preventDefault()}>
+              <button
+                onClick={e => onToggle(e, asset.symbol)}
+                disabled={toggling === asset.symbol}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg ml-2 ${
+                  subscribed
+                    ? 'bg-success/10 text-success border border-success/20'
+                    : 'bg-primary text-primary-fg'
+                }`}
+              >
+                {toggling === asset.symbol ? '…' : subscribed ? '✓' : '+'}
+              </button>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [subs, setSubs] = useState<Subscription[]>([]);
+  const [assets, setAssets] = useState<MarketAsset[]>([]);
+  const [subs, setSubs] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<'price' | 'change' | 'volume' | ''>('');
+  const [sortDir, setSortDir] = useState<1 | -1>(-1);
 
-  useEffect(() => {
-    api.subscriptions.list()
-      .then(setSubs)
-      .catch(() => setSubs([]))
-      .finally(() => setLoading(false));
+  const load = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setRefreshing(true);
+    try {
+      const [market, subscriptions] = await Promise.all([
+        api.assets.market(),
+        api.subscriptions.list(),
+      ]);
+      setAssets(market);
+      setSubs(new Set(subscriptions.map((s: Subscription) => s.symbol)));
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur de chargement');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
+  const toggleSub = async (e: React.MouseEvent, symbol: string) => {
+    e.stopPropagation();
+    setToggling(symbol);
+    try {
+      if (subs.has(symbol)) {
+        await api.subscriptions.remove(symbol);
+        setSubs(prev => { const n = new Set(prev); n.delete(symbol); return n; });
+      } else {
+        await api.subscriptions.add(symbol);
+        setSubs(prev => new Set(prev).add(symbol));
+      }
+    } catch { /* ignore */ }
+    setToggling(null);
+  };
+
+  const handleSort = (key: 'price' | 'change' | 'volume') => {
+    if (sortKey === key) setSortDir(d => (d === 1 ? -1 : 1));
+    else { setSortKey(key); setSortDir(-1); }
+  };
+
+  const sorted = [...assets].sort((a, b) => {
+    if (sortKey === 'price')  return ((a.price ?? 0) - (b.price ?? 0)) * sortDir;
+    if (sortKey === 'change') return ((a.changePercent ?? 0) - (b.changePercent ?? 0)) * sortDir;
+    if (sortKey === 'volume') return ((a.volume ?? 0) - (b.volume ?? 0)) * sortDir;
+    return 0;
+  });
+
   return (
-    <div className="px-4 py-5 space-y-6">
-      {/* Plan banner */}
+    <div className="px-4 py-5 space-y-5">
+      {/* Plan banner (mobile only feel, desktop has header) */}
       {user?.plan === 'free' && (
         <Link to="/account" className="block card p-4 border-primary/30 bg-primary/5 active:bg-primary/10 transition-colors">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-primary">Passer à Premium — 9,99€/mois</p>
-              <p className="text-xs text-text-secondary mt-0.5">
-                {subs.length}/3 actifs utilisés · Actifs illimités + alertes
-              </p>
+              <p className="text-xs text-text-secondary mt-0.5">{subs.size}/3 actifs utilisés · Actifs illimités + alertes</p>
             </div>
             <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -50,80 +301,64 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      {/* Mes actifs */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Mes actifs suivis</h3>
-          <Link to="/assets" className="text-xs text-primary font-medium">+ Ajouter</Link>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-text-primary">Marchés</h1>
+          <p className="text-sm text-text-secondary mt-0.5">
+            {assets.length > 0 ? `${assets.length} actifs suivis en temps réel` : 'Chargement…'}
+          </p>
         </div>
+        <button onClick={() => load(true)} disabled={refreshing || loading} className="btn-ghost text-xs px-3 py-2 flex items-center gap-1.5">
+          <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {refreshing ? 'Chargement…' : 'Actualiser'}
+        </button>
+      </div>
 
+      {error && (
+        <div className="text-danger text-sm bg-danger/10 border border-danger/20 rounded-xl px-4 py-3">{error}</div>
+      )}
+
+      {/* Desktop table */}
+      <div className="hidden lg:block">
         {loading ? (
-          <div className="space-y-2">
-            {[1, 2].map((i) => <SkeletonDashboardRow key={i} />)}
-          </div>
-        ) : subs.length === 0 ? (
-          <div className="card p-6 text-center border-dashed">
-            <svg className="w-8 h-8 text-text-muted mx-auto mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            <p className="text-sm font-medium text-text-primary">Aucun actif suivi</p>
-            <p className="text-xs text-text-muted mt-1 mb-4">Suivez des actions, ETF ou indices pour les retrouver ici et recevoir leurs actualités.</p>
-            <Link to="/assets" className="btn-primary text-sm">Explorer les actifs</Link>
+          <div className="card overflow-hidden">
+            <table className="w-full">
+              <tbody>{Array.from({ length: 8 }).map((_, i) => <SkeletonTableRow key={i} />)}</tbody>
+            </table>
           </div>
         ) : (
-          <div className="space-y-2">
-            {subs.map((sub) => (
-              <Link
-                key={sub.id}
-                to={`/chart/${encodeURIComponent(sub.symbol)}`}
-                className="card p-4 flex items-center gap-3 active:border-primary/40 transition-colors block"
-              >
-                <div className="w-9 h-9 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d={TYPE_ICONS[sub.type] ?? TYPE_ICONS.stock} />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-text-primary font-mono">{sub.symbol}</span>
-                    <span className="text-[10px] text-text-muted uppercase bg-surface px-1.5 py-0.5 rounded">{sub.type}</span>
-                  </div>
-                  <p className="text-xs text-text-secondary truncate mt-0.5">{sub.name}</p>
-                </div>
-                <svg className="w-4 h-4 text-text-muted flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-            ))}
-          </div>
+          <MarketTable
+            assets={sorted}
+            subs={subs}
+            toggling={toggling}
+            onToggle={toggleSub}
+            onSort={handleSort}
+            sortKey={sortKey}
+            sortDir={sortDir}
+          />
         )}
-      </section>
+      </div>
 
-      {/* Marchés populaires */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Marchés populaires</h3>
+      {/* Mobile cards */}
+      <div className="lg:hidden">
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map(i => <SkeletonDashboardRow key={i} />)}
+          </div>
+        ) : (
+          <MobileCards assets={sorted} subs={subs} toggling={toggling} onToggle={toggleSub} />
+        )}
+      </div>
+
+      {!loading && assets.length === 0 && !error && (
+        <div className="card p-8 text-center border-dashed">
+          <p className="text-text-muted text-sm">Aucun actif disponible.</p>
+          <p className="text-xs text-text-muted mt-1">Lancez <code className="bg-surface px-1 rounded">npm run seed</code> pour initialiser les données.</p>
         </div>
-        <p className="text-xs text-text-muted mb-3">Explorez les graphiques et les événements associés.</p>
-        <div className="grid grid-cols-2 gap-2">
-          {POPULAR.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="card p-3 active:border-primary/40 transition-colors"
-            >
-              <p className="text-[10px] font-mono text-text-muted">{item.symbol}</p>
-              <p className="text-sm font-medium text-text-primary mt-0.5">{item.label}</p>
-              <p className="text-[10px] text-primary mt-1 flex items-center gap-0.5">
-                Voir le graphique
-                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </p>
-            </Link>
-          ))}
-        </div>
-      </section>
+      )}
     </div>
   );
 }
