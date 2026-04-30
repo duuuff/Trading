@@ -46,24 +46,24 @@ export default function TradingChart({ candles, events, onEventClick }: Props) {
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#1a1a24' },
+        background: { type: ColorType.Solid, color: '#07070f' },
         textColor: '#94a3b8',
         fontFamily: 'Inter, system-ui, sans-serif',
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: '#2a2a3a' },
-        horzLines: { color: '#2a2a3a' },
+        vertLines: { color: '#1e1e2e' },
+        horzLines: { color: '#1e1e2e' },
       },
       crosshair: {
-        vertLine: { color: '#3b82f6', width: 1, style: 2, labelBackgroundColor: '#3b82f6' },
-        horzLine: { color: '#3b82f6', width: 1, style: 2, labelBackgroundColor: '#3b82f6' },
+        vertLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#6366f1' },
+        horzLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#6366f1' },
       },
       rightPriceScale: {
-        borderColor: '#2a2a3a',
+        borderColor: '#252535',
       },
       timeScale: {
-        borderColor: '#2a2a3a',
+        borderColor: '#252535',
         timeVisible: true,
         secondsVisible: false,
       },
@@ -72,14 +72,14 @@ export default function TradingChart({ candles, events, onEventClick }: Props) {
     });
 
     const series = chart.addAreaSeries({
-      lineColor: '#3b82f6',
-      topColor: 'rgba(59, 130, 246, 0.2)',
+      lineColor: '#6366f1',
+      topColor: 'rgba(99, 102, 241, 0.15)',
       bottomColor: 'rgba(59, 130, 246, 0.0)',
       lineWidth: 2,
       lineType: LineType.Curved,
       crosshairMarkerRadius: 4,
-      crosshairMarkerBorderColor: '#3b82f6',
-      crosshairMarkerBackgroundColor: '#1a1a24',
+      crosshairMarkerBorderColor: '#6366f1',
+      crosshairMarkerBackgroundColor: '#07070f',
     });
 
     chartRef.current = chart;
