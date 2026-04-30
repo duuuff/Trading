@@ -144,8 +144,8 @@ export async function fetchSparkline(symbol: string): Promise<number[]> {
   }
 }
 
-export async function fetchNews(symbol: string): Promise<YFNewsItem[]> {
-  const url = `${YF_BASE}/v1/finance/search?q=${encodeURIComponent(symbol)}&newsCount=5&quotesCount=0`;
+export async function fetchNews(symbol: string, count = 5): Promise<YFNewsItem[]> {
+  const url = `${YF_BASE}/v1/finance/search?q=${encodeURIComponent(symbol)}&newsCount=${count}&quotesCount=0`;
 
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8000);

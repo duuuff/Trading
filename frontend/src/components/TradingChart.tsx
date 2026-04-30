@@ -10,7 +10,7 @@ import {
   type SeriesMarker,
 } from 'lightweight-charts';
 import { useTheme } from '../hooks/useTheme';
-import type { Candle, MarketEvent } from '../types';
+import type { Candle, MarketEvent, ChartNewsItem } from '../types';
 
 function cssVar(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -20,6 +20,8 @@ interface Props {
   candles: Candle[];
   events: MarketEvent[];
   onEventClick: (event: MarketEvent) => void;
+  newsItems?: ChartNewsItem[];
+  onNewsClick?: (item: ChartNewsItem) => void;
 }
 
 function candleToData(c: Candle): AreaData<Time> {
@@ -41,7 +43,19 @@ function eventToMarker(e: MarketEvent): SeriesMarker<Time> {
   };
 }
 
-export default function TradingChart({ candles, events, onEventClick }: Props) {
+function newsToMarker(n: ChartNewsItem, dayTime: number): SeriesMarker<Time> {
+  const label = n.title.length > 32 ? n.title.slice(0, 32) + '…' : n.title;
+  return {
+    time: dayTime as Time,
+    position: 'aboveBar',
+    color: '#3b82f6',
+    shape: 'circle',
+    text: label,
+    id: `news-${n.published_at}`,
+  };
+}
+
+export default function TradingChart({ candles, events, onEventClick, newsItems, onNewsClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Area'> | null>(null);
@@ -149,29 +163,57 @@ export default function TradingChart({ candles, events, onEventClick }: Props) {
 
   useEffect(() => {
     if (!seriesRef.current) return;
-    const markers = events
-      .map(eventToMarker)
+
+    // Build marker map: news first (lower priority), events overwrite (higher priority)
+    const markerMap = new Map<number, SeriesMarker<Time>>();
+
+    for (const n of (newsItems ?? [])) {
+      const d = new Date(n.published_at);
+      d.setUTCHours(0, 0, 0, 0);
+      const t = Math.floor(d.getTime() / 1000);
+      if (!markerMap.has(t)) {
+        markerMap.set(t, newsToMarker(n, t));
+      }
+    }
+
+    for (const e of events) {
+      const t = Math.floor(new Date(e.date).getTime() / 1000);
+      markerMap.set(t, eventToMarker(e));
+    }
+
+    const markers = Array.from(markerMap.values())
       .sort((a, b) => (a.time as number) - (b.time as number));
     seriesRef.current.setMarkers(markers);
-  }, [events]);
+  }, [events, newsItems]);
 
   useEffect(() => {
     const chart = chartRef.current;
-    const series = seriesRef.current;
-    if (!chart || !series) return;
+    if (!chart) return;
 
-    const handler = (param: { time?: Time; point?: { x: number; y: number } }) => {
-      if (!param.time || !param.point) return;
-      const clickedMarker = events.find((e) => {
-        const eTime = Math.floor(new Date(e.date).getTime() / 1000);
-        return eTime === (param.time as number);
+    const handler = (param: { time?: Time }) => {
+      if (!param.time) return;
+      const t = param.time as number;
+
+      // Check events first
+      const clickedEvent = events.find((e) => {
+        return Math.floor(new Date(e.date).getTime() / 1000) === t;
       });
-      if (clickedMarker) onEventClick(clickedMarker);
+      if (clickedEvent) { onEventClick(clickedEvent); return; }
+
+      // Check news
+      if (onNewsClick) {
+        const clickedNews = (newsItems ?? []).find((n) => {
+          const d = new Date(n.published_at);
+          d.setUTCHours(0, 0, 0, 0);
+          return Math.floor(d.getTime() / 1000) === t;
+        });
+        if (clickedNews) onNewsClick(clickedNews);
+      }
     };
 
     chart.subscribeClick(handler);
     return () => chart.unsubscribeClick(handler);
-  }, [events, onEventClick]);
+  }, [events, newsItems, onEventClick, onNewsClick]);
 
   return <div ref={containerRef} className="w-full" style={{ height: 320 }} />;
 }

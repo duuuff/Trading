@@ -1,4 +1,4 @@
-import type { Asset, Candle, MarketEvent, MarketAsset, Subscription, NewsItem, User } from '../types';
+import type { Asset, Candle, MarketEvent, MarketAsset, Subscription, NewsItem, ChartNewsItem, NewsPeriod, User } from '../types';
 
 const BASE = '/api';
 
@@ -58,6 +58,7 @@ export const api = {
     chart: (symbol: string, period = '1y') =>
       request<{ symbol: string; candles: Candle[] }>(`/assets/${symbol}/chart?period=${period}`, { headers: headers(true) }),
     events: (symbol: string) => request<MarketEvent[]>(`/assets/${symbol}/events`, { headers: headers(true) }),
+    news: (symbol: string) => request<ChartNewsItem[]>(`/assets/${symbol}/news`, { headers: headers(true) }),
     createEvent: (symbol: string, data: Partial<MarketEvent>) =>
       request<MarketEvent>(`/assets/${symbol}/events`, {
         method: 'POST',
@@ -82,6 +83,7 @@ export const api = {
   },
 
   news: {
-    list: () => request<NewsItem[]>('/news', { headers: headers(true) }),
+    list: (period: NewsPeriod = 'day') =>
+      request<NewsItem[]>(`/news?period=${period}`, { headers: headers(true) }),
   },
 };

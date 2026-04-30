@@ -4,7 +4,7 @@ import { api } from '../services/api';
 import TradingChart from '../components/TradingChart';
 import EventModal from '../components/EventModal';
 import { SkeletonChartPage } from '../components/Skeleton';
-import type { Asset, Candle, MarketEvent } from '../types';
+import type { Asset, Candle, MarketEvent, ChartNewsItem } from '../types';
 
 type Period = '3m' | '6m' | '1y' | '2y' | '5y';
 
@@ -29,6 +29,7 @@ export default function ChartPage() {
   const [chartLoading, setChartLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<MarketEvent | null>(null);
+  const [newsItems, setNewsItems] = useState<ChartNewsItem[]>([]);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subLoading, setSubLoading] = useState(false);
   const [subFlash, setSubFlash] = useState<'add' | 'remove' | null>(null);
@@ -52,6 +53,10 @@ export default function ChartPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+
+    api.assets.news(decodedSymbol)
+      .then(setNewsItems)
+      .catch(() => {});
   }, [decodedSymbol]);
 
   useEffect(() => {
@@ -85,6 +90,10 @@ export default function ChartPage() {
 
   const handleEventClick = useCallback((event: MarketEvent) => {
     setSelectedEvent(event);
+  }, []);
+
+  const handleNewsClick = useCallback((item: ChartNewsItem) => {
+    window.open(item.url, '_blank', 'noopener,noreferrer');
   }, []);
 
   if (loading) return <SkeletonChartPage />;
@@ -163,7 +172,7 @@ export default function ChartPage() {
         {/* Chart with loading overlay */}
         <div className="card overflow-hidden relative">
           {candles.length > 0 ? (
-            <TradingChart candles={candles} events={events} onEventClick={handleEventClick} />
+            <TradingChart candles={candles} events={events} onEventClick={handleEventClick} newsItems={newsItems} onNewsClick={handleNewsClick} />
           ) : error ? (
             <div className="h-80 flex flex-col items-center justify-center gap-3 px-6 text-center">
               <svg className="w-8 h-8 text-warning opacity-70" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -202,14 +211,23 @@ export default function ChartPage() {
         </div>
 
         {/* Chart legend hint */}
-        {events.length > 0 && (
+        {(events.length > 0 || newsItems.length > 0) && (
           <div className="flex items-center gap-3 bg-surface rounded-xl px-3 py-2.5">
-            <div className="flex items-center gap-2 text-xs text-text-muted">
-              <span className="font-bold text-success text-sm">↑</span> Hausse
-              <span className="font-bold text-danger text-sm ml-1">↓</span> Baisse
+            <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap">
+              {events.length > 0 && (
+                <>
+                  <span className="font-bold text-success text-sm">↑</span> Hausse
+                  <span className="font-bold text-danger text-sm ml-1">↓</span> Baisse
+                </>
+              )}
+              {newsItems.length > 0 && (
+                <span className="flex items-center gap-1 ml-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-500" /> News
+                </span>
+              )}
             </div>
             <p className="flex-1 text-right text-xs text-text-muted italic">
-              Appuyez sur une flèche
+              Appuyez sur un marqueur
             </p>
           </div>
         )}

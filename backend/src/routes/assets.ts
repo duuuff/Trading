@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/database.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
-import { fetchChart, fetchQuotes, fetchSparkline } from '../services/yahooFinance.js';
+import { fetchChart, fetchQuotes, fetchSparkline, fetchNews } from '../services/yahooFinance.js';
 
 const router = Router();
 
@@ -94,6 +94,37 @@ router.get('/:symbol/chart', optionalAuth, async (req: Request, res: Response): 
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erreur inconnue';
     res.status(502).json({ error: `Impossible de récupérer les données: ${message}` });
+  }
+});
+
+router.get('/:symbol/news', optionalAuth, async (req: Request, res: Response): Promise<void> => {
+  const db = getDb();
+  const asset = db.prepare('SELECT id FROM assets WHERE symbol = ?').get(req.params.symbol.toUpperCase()) as { id: number } | undefined;
+  if (!asset) { res.status(404).json({ error: 'Actif non trouvé' }); return; }
+
+  try {
+    interface NewsRow { title: string; url: string; published_at: string; }
+    const cached = db.prepare(`
+      SELECT title, url, published_at FROM news_cache
+      WHERE asset_id = ? AND fetched_at > datetime('now', '-3 hour')
+      ORDER BY published_at DESC LIMIT 30
+    `).all(asset.id) as NewsRow[];
+
+    if (cached.length > 0) { res.json(cached); return; }
+
+    const articles = await fetchNews(req.params.symbol, 30);
+    db.prepare('DELETE FROM news_cache WHERE asset_id = ?').run(asset.id);
+
+    const rows: NewsRow[] = [];
+    for (const a of articles) {
+      const publishedAt = new Date(a.providerPublishTime * 1000).toISOString();
+      db.prepare(`INSERT INTO news_cache (asset_id, title, summary, url, published_at, sentiment) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(asset.id, a.title, null, a.link ?? '', publishedAt, 'neutral');
+      rows.push({ title: a.title, url: a.link ?? '', published_at: publishedAt });
+    }
+    res.json(rows);
+  } catch (err) {
+    res.status(502).json({ error: 'Impossible de récupérer les actualités' });
   }
 });
 

@@ -55,6 +55,8 @@ export interface MarketAsset extends Asset {
   sparkline: number[];
 }
 
+export type NewsPeriod = 'day' | 'week' | 'month';
+
 export interface NewsItem {
   asset_symbol: string;
   title: string;
@@ -62,4 +64,10 @@ export interface NewsItem {
   url: string;
   published_at: string;
   sentiment: 'bullish' | 'bearish' | 'neutral';
+}
+
+export interface ChartNewsItem {
+  title: string;
+  url: string;
+  published_at: string;
 }
